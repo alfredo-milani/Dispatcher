@@ -1,10 +1,9 @@
 import ast
 import configparser
-import pathlib
 import threading
-from datetime import date
 
-from util.Common import Common
+import __version__
+from util import Validation
 
 
 class DispatcherConfig(dict):
@@ -16,16 +15,18 @@ class DispatcherConfig(dict):
     __LOCK = threading.Lock()
 
     # Intern
+    K_VERSION = "version"
+    V_DEFAULT_VERSION = __version__.__version__
     K_APP_NAME = "app_name"
     V_DEFAULT_APP_NAME = "Dispatcher"
-    K_LOG_FILE = "log"
-    V_DEFAULT_LOG_FILE = "/var/log/{}_{}.log"
+    K_LOG_FILENAME = "log.filename"
+    V_DEFAULT_LOG_FILENAME = None
 
     # Section
     S_GENERAL = "GENERAL"
     # Keys
-    K_LOG_CONFIG_FILE = "log.config_file"
-    V_DEFAULT_LOG_CONFIG_FILE = "{}/res/conf/log.ini"
+    K_LOG_DIR = "log.dir"
+    V_DEFAULT_LOG_DIR = None
     K_TMP = "tmp"
     V_DEFAULT_TMP = "/tmp"
     K_THREADS = "threads"
@@ -69,24 +70,22 @@ class DispatcherConfig(dict):
         :param config_file:
         :raise: SyntaxError if there is a syntax error in configuration file
         """
-        path = pathlib.Path(config_file)
-        if not path.exists() or not path.is_file():
-            raise FileNotFoundError(f"File '{config_file}' not exists")
+        Validation.is_file_readable(
+            config_file,
+            f"File '{config_file}' *must* exists and be readable"
+        )
 
-        self.__config_parser.read(config_file)
-        self.__upload_config()
+        with self.__LOCK:
+            self.__config_parser.read(config_file)
+            self.__upload_config()
 
     def __upload_config(self) -> None:
         """
 
         :raise: SyntaxError if there is a syntax error in configuration file
         """
-        # intern
-        self.__put_str(DispatcherConfig.K_APP_NAME, '', '', DispatcherConfig.V_DEFAULT_APP_NAME)
-        self.__put_str(DispatcherConfig.K_LOG_FILE, '', '', DispatcherConfig.V_DEFAULT_LOG_FILE.format(self.app_name, date.today().strftime('%Y%m%d')))
-
         # section [GENERAL]
-        self.__put_str(DispatcherConfig.K_LOG_CONFIG_FILE, DispatcherConfig.S_GENERAL, DispatcherConfig.K_LOG_CONFIG_FILE, DispatcherConfig.V_DEFAULT_LOG_CONFIG_FILE.format(Common.get_proj_root_path()))
+        self.__put_str(DispatcherConfig.K_LOG_DIR, DispatcherConfig.S_GENERAL, DispatcherConfig.K_LOG_DIR, DispatcherConfig.V_DEFAULT_LOG_DIR)
         self.__put_str(DispatcherConfig.K_TMP, DispatcherConfig.S_GENERAL, DispatcherConfig.K_TMP, DispatcherConfig.V_DEFAULT_TMP)
         self.__put_int(DispatcherConfig.K_THREADS, DispatcherConfig.S_GENERAL, DispatcherConfig.K_THREADS, DispatcherConfig.V_DEFAULT_THREADS)
 
@@ -96,6 +95,15 @@ class DispatcherConfig(dict):
         self.__put_float(DispatcherConfig.K_SOURCES_TIMEOUT, DispatcherConfig.S_DISPATCHER, DispatcherConfig.K_SOURCES_TIMEOUT, DispatcherConfig.V_DEFAULT_SOURCES_TIMEOUT)
         self.__put_dict(DispatcherConfig.K_DESTINATIONS, DispatcherConfig.S_DISPATCHER, DispatcherConfig.K_DESTINATIONS, DispatcherConfig.V_DEFAULT_DESTINATIONS)
         self.__put_dict(DispatcherConfig.K_RULES, DispatcherConfig.S_DISPATCHER, DispatcherConfig.K_RULES, DispatcherConfig.V_DEFAULT_RULES)
+
+        # intern
+        self.__put_str(DispatcherConfig.K_VERSION, '', '', DispatcherConfig.V_DEFAULT_VERSION)
+        self.__put_str(DispatcherConfig.K_APP_NAME, '', '', DispatcherConfig.V_DEFAULT_APP_NAME)
+        if self.general_log_dir is not None:
+            from datetime import date
+            self.__put_str(DispatcherConfig.K_LOG_FILENAME, '', '', f"{self.general_log_dir}/{self.app_name}_{date.today().strftime('%d%m%Y')}.log")
+        else:
+            self.__put_str(DispatcherConfig.K_LOG_FILENAME, '', '', DispatcherConfig.V_DEFAULT_LOG_FILENAME)
 
     def __put_obj(self, key: str, section: str, section_key: str, default: object = None) -> None:
         try:
@@ -121,6 +129,18 @@ class DispatcherConfig(dict):
         except (configparser.NoOptionError, configparser.NoSectionError):
             self[key] = default
 
+    def __put_list(self, key: str, section: str, section_key: str, default: list = None) -> None:
+        try:
+            self[key] = list(self.__config_parser.get(section, section_key))
+        except (configparser.NoOptionError, configparser.NoSectionError):
+            self[key] = default
+
+    def __put_tuple(self, key: str, section: str, section_key: str, default: tuple = None) -> None:
+        try:
+            self[key] = tuple(self.__config_parser.get(section, section_key))
+        except (configparser.NoOptionError, configparser.NoSectionError):
+            self[key] = default
+
     def __put_dict(self, key: str, section: str, section_key: str, default: dict = None) -> None:
         """
 
@@ -143,16 +163,20 @@ class DispatcherConfig(dict):
             self[key] = default
 
     @property
+    def version(self):
+        return self.get(DispatcherConfig.K_VERSION)
+
+    @property
     def app_name(self) -> str:
         return self.get(DispatcherConfig.K_APP_NAME)
 
     @property
-    def log_file(self) -> str:
-        return self.get(DispatcherConfig.K_LOG_FILE)
+    def log_filename(self) -> str:
+        return self.get(DispatcherConfig.K_LOG_FILENAME)
 
     @property
-    def general_log_config_file(self) -> str:
-        return self.get(DispatcherConfig.K_LOG_CONFIG_FILE)
+    def general_log_dir(self) -> str:
+        return self.get(DispatcherConfig.K_LOG_DIR)
 
     @property
     def general_tmp(self) -> str:

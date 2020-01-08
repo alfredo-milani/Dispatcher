@@ -1,4 +1,3 @@
-import logging
 from concurrent.futures.thread import ThreadPoolExecutor
 from typing import List
 
@@ -12,18 +11,20 @@ from util.Validation import Validation, ValidationException
 
 class FileEventHandler(FileSystemEventHandler):
     """
-    This class handles the events of creations and move to of a file.
+    This class handles the events of creations and move to of a file and rely on
+        FileDispatcher to copy/remove files.
 
-    This class rely on FileDispatcher to perform copy/remove of files.
+    Uses a thread pool to manage files dispatching.
     """
 
-    __LOG = logging.getLogger(LogManager.Logger.OBSERVER.value)
+    __LOG = None
 
     DEFAULT_MAX_THREADS = 2
 
     def __init__(self, rules: List[Rule], max_threads: int = DEFAULT_MAX_THREADS):
         super().__init__()
 
+        FileEventHandler.__LOG = LogManager.get_instance().get(LogManager.Logger.OBSERVER)
         self.__dispatcher = FileDispatcher(rules)
         self.__executor = ThreadPoolExecutor(max_workers=max_threads)
 

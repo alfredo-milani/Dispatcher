@@ -58,22 +58,13 @@ pip-sync
 
 ## 4. Usage <a name="usage"></a>
 
-Modify file res/conf/log.ini, section 'handler_file_handler', key 'args', prefix "/var/log/Dispatcher_", to specify a valid base path for log file.
-
-```ini
-# Default:
-[handler_file_handler]
-. . .
-args = ("/var/log/Dispatcher_" + time.strftime("%%Y%%m%%d") + ".log", "a")
-```
-
 Launch tool:
 
 ```bash
 # Start main:
 python src/Application.py
 
-# You could specify a configuration file:
+# or you can specify a configuration file:
 python src/Application.py /path/custom_config.ini
 ```
 
@@ -86,9 +77,9 @@ Configurations file example:
 
 
 [GENERAL]
-# [opt] - Configuration file for logging service
-# [dft] - res/conf/log.ini
-# log.config_file = /Volumes/Ramdisk/log.ini
+# [opt] - Log directory. If no directory will be specified no log file will be created
+# [dft] -
+log.dir = /var/log
 
 # [opt] - Directory for temporary files
 # [dft] - /tmp

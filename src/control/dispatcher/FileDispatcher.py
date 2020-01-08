@@ -1,4 +1,3 @@
-import logging
 from typing import List
 
 from control.dispatcher import BaseDispatcher
@@ -11,12 +10,16 @@ class FileDispatcher(BaseDispatcher):
 
     """
 
-    __LOG = logging.getLogger(LogManager.Logger.DISPATCHER.value)
+    __LOG = None
 
     def __init__(self, rules: List[Rule]):
         super().__init__()
 
+        FileDispatcher.__LOG = LogManager.get_instance().get(LogManager.Logger.DISPATCHER)
         self.__rules = rules
+
+        if len(rules) == 0:
+            FileDispatcher.__LOG.warning("No rule specified. All files will be skipped.")
 
     def prepare(self, file: File) -> None:
         super().prepare(file)

@@ -1,9 +1,9 @@
-import logging.config
 from pathlib import Path
 from typing import Dict
 
 from watchdog.observers import Observer
 
+import __version__
 from control.FileEventHandler import FileEventHandler
 from model import DispatcherConfig, RuleBuilder
 from util import Validation, LogManager
@@ -19,12 +19,10 @@ class FileObserver(object):
     """
 
     # TODO
-    #  - programmatic logs
+    #  - add verbose and debug cli option
     #  - unit test
 
     __LOG = None
-
-    _DISPATCHER_CONFIG = None
 
     PY_VERSION_MIN = (3, 7)
 
@@ -36,48 +34,42 @@ class FileObserver(object):
         """
         super().__init__()
 
-        FileObserver._DISPATCHER_CONFIG = dispatcher_config
-        self.__dir_obs_dict = None
-        self.__event_handler = None
+        print(f"version: {__version__.__version__}")
 
         # Validate python version
-        self.__validate_py_version(FileObserver.PY_VERSION_MIN)
+        Validation.python_version(FileObserver.PY_VERSION_MIN, f"Python version required >= {FileObserver.PY_VERSION_MIN}")
+
+        self.__dispatcher_config = dispatcher_config
+
         # Load loggers
-        self.__init_loggers(dispatcher_config.general_log_config_file)
+        self.__init_loggers(dispatcher_config.log_filename)
         # Validate rules
         self.__validate_rules()
         # Check permissions
         self.__check_permissions()
 
-        self.__dir_obs_dict = self._fill_dict(dispatcher_config.dispatcher_sources)
-        self.__event_handler = FileEventHandler(RuleBuilder.build_list(
-            dispatcher_config.dispatcher_rules,
-            dispatcher_config.dispatcher_formats,
-            dispatcher_config.dispatcher_sources,
-            dispatcher_config.dispatcher_destinations
-        ))
-
-    @classmethod
-    def __validate_py_version(cls, min_version):
-        Validation.python_version(
-            min_version,
-            f"Python version required >= {min_version}"
+        self.__dir_obs_dict = self.__fill_dict(dispatcher_config.dispatcher_sources)
+        self.__event_handler = FileEventHandler(
+            RuleBuilder.build_list(
+                dispatcher_config.dispatcher_rules,
+                dispatcher_config.dispatcher_formats,
+                dispatcher_config.dispatcher_sources,
+                dispatcher_config.dispatcher_destinations
+            ),
+            dispatcher_config.general_threads
         )
 
     @classmethod
-    def __init_loggers(cls, log_config_file):
-        Validation.is_file_readable(
-            log_config_file,
-            f"Log configuration file *must* exists and be readable '{log_config_file}'"
-        )
+    def __init_loggers(cls, log_filename: str) -> None:
+        log_manager = LogManager.get_instance()
+        log_manager.load(log_filename)
+        FileObserver.__LOG = log_manager.get(LogManager.Logger.OBSERVER)
+        FileObserver.__LOG.critical("DDD " + hex(id(log_manager)))
 
-        # Loading log's configuration file
-        logging.config.fileConfig(fname=log_config_file)
-        FileObserver.__LOG = logging.getLogger(LogManager.Logger.OBSERVER.value)
-
-    def _fill_dict(self, directories: Dict[str, str]) -> Dict[str, Observer]:
+    def __fill_dict(self, directories: Dict[str, str]) -> Dict[str, Observer]:
         directories_list = [directories[src] for src in directories]
-        observers_list = [Observer(timeout=self._DISPATCHER_CONFIG.dispatcher_sources_timeout) for _ in range(len(directories_list))]
+        timeout = self.__dispatcher_config.dispatcher_sources_timeout
+        observers_list = [Observer(timeout=timeout) for _ in range(len(directories_list))]
         return dict(zip(directories_list, observers_list))
 
     def __validate_rules(self) -> None:
@@ -86,10 +78,10 @@ class FileObserver(object):
         :raise TypeError
         :raise ValueError
         """
-        formats = self._DISPATCHER_CONFIG.dispatcher_formats
-        sources = self._DISPATCHER_CONFIG.dispatcher_sources
-        destinations = self._DISPATCHER_CONFIG.dispatcher_destinations
-        rules = self._DISPATCHER_CONFIG.dispatcher_rules
+        formats = self.__dispatcher_config.dispatcher_formats
+        sources = self.__dispatcher_config.dispatcher_sources
+        destinations = self.__dispatcher_config.dispatcher_destinations
+        rules = self.__dispatcher_config.dispatcher_rules
 
         Validation.is_dict(formats, "Formats not specified")
         Validation.is_true(
@@ -121,8 +113,8 @@ class FileObserver(object):
         :raise PermissionError
         :raise LinksError
         """
-        sources = self._DISPATCHER_CONFIG.dispatcher_sources
-        destinations = self._DISPATCHER_CONFIG.dispatcher_destinations
+        sources = self.__dispatcher_config.dispatcher_sources
+        destinations = self.__dispatcher_config.dispatcher_destinations
 
         for source in sources:
             Validation.is_dir(
@@ -170,13 +162,13 @@ class FileObserver(object):
                 recursive=False
             )
             self.__dir_obs_dict[directory].start()
-            FileObserver.__LOG.info(f"Start observing {directory}")
+            FileObserver.__LOG.debug(f"Start observing {directory}")
 
         for directory in self.__dir_obs_dict:
             self.__dir_obs_dict[directory].join()
 
     def start(self) -> None:
-        FileObserver.__LOG.debug(chr(10) + FileObserver._DISPATCHER_CONFIG)
+        FileObserver.__LOG.debug(chr(10) + self.__dispatcher_config)
         FileObserver.__LOG.info("*** START *** monitoring")
 
         try:
@@ -199,17 +191,17 @@ class FileObserver(object):
                 self.__dir_obs_dict[directory].stop()
                 # Wait until the thread terminates before exit
                 self.__dir_obs_dict[directory].join()
-                FileObserver.__LOG.info(f"Stop observing {directory}")
+                FileObserver.__LOG.debug(f"Stop observing {directory}")
         except RuntimeError as e:
             FileObserver.__LOG.debug(f"{e}", exc_info=True)
 
         FileObserver.__LOG.debug("Shutting down logging service")
-        logging.shutdown()
+        LogManager.get_instance().shutdown()
 
     def stop(self) -> None:
         FileObserver.__LOG.info("*** STOP *** monitoring")
 
-        FileObserver.__LOG.info("Cleanup")
+        FileObserver.__LOG.debug("Cleanup")
         self.__cleanup()
 
-        FileObserver.__LOG.info("Exit")
+        FileObserver.__LOG.debug("Exit")
