@@ -117,6 +117,19 @@ class Validation(object):
             if actual_version[min_version.index(v)] < int(v):
                 raise ValidationException.PythonVersionError(msg)
 
+    @staticmethod
+    def is_installed(binary: str, msg: str = "") -> None:
+        """
+        Check whether binary is on PATH and marked as executable
+
+        :param binary: binary to check
+        :param msg: message to pass to exception
+        :raise: FileNotFoundError iff binary is not in PATH
+        """
+        from shutil import which
+        if which(binary) is None:
+            raise FileNotFoundError(msg)
+
 
 class ValidationException(object):
 
