@@ -64,7 +64,6 @@ class FileObserver(object):
         log_manager = LogManager.get_instance()
         log_manager.load(log_filename)
         FileObserver.__LOG = log_manager.get(LogManager.Logger.OBSERVER)
-        FileObserver.__LOG.critical("DDD " + hex(id(log_manager)))
 
     def __fill_dict(self, directories: Dict[str, str]) -> Dict[str, Observer]:
         directories_list = [directories[src] for src in directories]
