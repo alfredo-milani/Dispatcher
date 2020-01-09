@@ -50,7 +50,6 @@ class LogManager(object):
             Validation.is_dir_writeable(parent_directory, f"Directory '{parent_directory}' must exists and be writable")
 
         with cls.__LOCK:
-            from model import DispatcherConfig
             # formatters
             cls._FORMATTER = LogManager.__configure_formatter()
             # handlers
