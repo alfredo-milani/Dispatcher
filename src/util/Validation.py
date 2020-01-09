@@ -101,6 +101,11 @@ class Validation(object):
         Validation.can_write(val, msg)
 
     @staticmethod
+    def is_empty(val: str, msg: str = "") -> None:
+        if val in ("", None):
+            raise ValueError(msg)
+
+    @staticmethod
     def has_extension(val: str, msg: str = ""):
         if '.' not in val:
             raise ValidationException.MissingExtensionError(msg)
